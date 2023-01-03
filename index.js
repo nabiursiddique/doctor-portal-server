@@ -81,6 +81,16 @@ async function run() {
                 }
             ]).toArray();
             res.send(options)
+        });
+
+        // Getting data based on email for myAppointment page/ dashboard page
+        app.get('/bookings', async (req, res) => {
+            const email = req.query.email;
+            const query = {
+                email: email
+            }
+            const bookings = await bookingsCollection.find(query).toArray();
+            res.send(bookings);
         })
 
 
