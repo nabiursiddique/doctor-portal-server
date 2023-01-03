@@ -35,10 +35,68 @@ async function run() {
                 option.slots = remainingSlots;
             })
             res.send(options);
+        });
+
+        // We can also load data like that or we can load data like up below like this we can maintain version (Optional)
+        app.get('/v2/appointmentOptions', async (req, res) => {
+            const date = req.query.date;
+            const options = await appointmentOptionCollection.aggregate([
+                {
+                    $lookup: {
+                        from: 'bookings',
+                        localField: 'name',
+                        foreignField: 'treatment',
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $eq: ['$appointmentDate', date]
+                                    }
+                                }
+                            }
+                        ],
+                        as: 'booked'
+                    }
+                },
+                {
+                    $project: {
+                        name: 1,
+                        slots: 1,
+                        booked: {
+                            $map: {
+                                input: '$booked',
+                                as: 'book',
+                                in: '$$book.slot'
+                            }
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        name: 1,
+                        slots: {
+                            $setDifference: ['$slots', '$booked']
+                        }
+                    }
+                }
+            ]).toArray();
+            res.send(options)
         })
+
 
         app.post('/bookings', async (req, res) => {
             const booking = req.body;
+            const query = {
+                appointmentDate: booking.appointmentDate,
+                email: booking.email,
+                treatment: booking.treatment
+            }
+
+            const alreadyBooked = await bookingsCollection.find(query).toArray();
+            if (alreadyBooked.length) {
+                const message = `You already have a booking on ${booking.appointmentDate}`
+                return res.send({ acknowledged: false, message })
+            }
             const result = await bookingsCollection.insertOne(booking);
             res.send(result);
         })
